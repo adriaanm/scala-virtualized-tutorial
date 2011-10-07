@@ -1,6 +1,10 @@
 package org.scala_lang.virtualized
 package js
 
+/**
+ * CoreDefs adds statements (also called definitions) to the core support for expressions.
+ * 
+ */
 trait CoreDefs extends CoreExps {
   abstract class Def[T] 
 
@@ -36,6 +40,22 @@ trait JSDefsExps extends CoreDefs {
   case class VarInit[T](x: Exp[T]) extends Def[T]
   case class VarAssign[T](v: Exp[T], x: Exp[T]) extends Def[Unit]
 
+  
+  /**
+   * The representation of a binary operation: we'll only use >= here 
+   */
+  case class BinaryOp[T, U](x: Exp[T], op: String, y: Exp[T]) extends Def[U]
+  
+  /**
+   * Any T for which there is an implicit Ordering[T] will be converted into a BinaryOps[T],
+   * so that >= appears to be available on these T's -- calling these operations will
+   * yield a BinaryOp statement that represents the operation.
+   */
+  trait BinaryOps[T] { val self: Exp[T]
+    def >=(y: Exp[T]) = BinaryOp[T, Boolean](self, ">=", y)
+  }
+  implicit def orderingOps[T: Ordering](x: Exp[T]) = new BinaryOps[T]{ val self = x }
+
   // Obj and Select are Exp's: used on their own (as a statement) in a DSL program, 
   // they will not generate any code (since toAtom is not called, and thus they are not registered in the current scope)
   case class Select[T, U](tgt: Exp[U], field: String) extends Exp[T] {
@@ -60,6 +80,7 @@ trait EmbedJS extends JSDefsExps {
   }
 }
 
+// to run, right-click on "Test" below, and select Run As > Scala Application
 object Test extends App  {
   object Example extends EmbedJS with JSCodeGen { def prog = {
     var kim = new JSObj { val name = "kim"; val age = 20 }
@@ -119,11 +140,12 @@ trait JSCodeGen extends JSDefsExps {
       emitPlain("var " + s.refStr + " = ", true); emitExpr(x); emitPlain("")
     case VarAssign(v, x) => 
       emitValDef(s, "(" + v.refStr + " = ", true); emitExpr(x); emitPlain(")")
+    case BinaryOp(x, op, y) =>
+      emitValDef(s, "", true); emitExpr(x); emitPlain(" "+ op +" ", true); emitExpr(y); emitPlain(")")
   }
 
   def emitExpr[T](expr: Exp[T]): Unit = expr match {
     case s@Sym(_) => emitPlain(s.refStr, true)
-    case BinaryOp(x, op, y) => emitExpr(x); emitPlain(" "+ op +" ", true); emitExpr(y)
     case c@Const(_) => emitPlain(c.refStr, true); 
     case Select(tgt, field) => emitExpr(tgt); emitPlain("."+field, true)
     case Obj(fields) =>
