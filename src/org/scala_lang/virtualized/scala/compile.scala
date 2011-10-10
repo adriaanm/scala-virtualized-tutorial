@@ -1,7 +1,7 @@
-package org.scala_lang.virtualized
-package scala
+package org.scala_lang.virtualized.scala
 
 import java.io._
+
 
 import scala.tools.nsc._
 import scala.tools.nsc.util._

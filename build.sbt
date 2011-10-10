@@ -8,9 +8,9 @@ resolvers += ScalaToolsSnapshots
 
 scalaSource in Compile <<= baseDirectory(_ / "src") // default
 
-// scalacOptions += "-Xexperimental" // needed?
+// scalacOptions += "-Xexperimental" // not needed
 
-//libraryDependencies += "org.scala-tools.testing" %% "scalacheck" % "1.8" % "test"
+libraryDependencies += "org.scala-lang" % "scala-compiler" % "2.10.0-virtualized-SNAPSHOT"
 
 //mainClass in (Compile, run) := Some("myproject.MyMain")
 

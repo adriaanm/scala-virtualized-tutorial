@@ -1,5 +1,5 @@
-package org.scala_lang.virtualized
-package js
+package org.scala_lang.virtualized.js
+import org.scala_lang.virtualized.{CoreDefs, CoreExps}
 
 
 /**

@@ -1,5 +1,5 @@
-package org.scala_lang.virtualized
-package sql
+package org.scala_lang.virtualized.sql
+import org.scala_lang.virtualized.CoreExps
 
 import scala.reflect.SourceLocation
 
