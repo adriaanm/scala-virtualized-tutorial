@@ -11,10 +11,16 @@ object Test {
   }
 
   def main(args: Array[String]) {
+    test(500, 200)
+  }
+  
+  def test(rows: Int, cols: Int) {
     
-    val f1 = UnstagedImpl.genericTest
-    val f2 = UnstagedImpl.specificTest
-    val f3 = StagedImpl.genericTest
+    println("=== testing " + rows + "x" + cols + " ===")    
+    
+    val f1 = UnstagedImpl.genericTest(rows, cols)
+    val f2 = UnstagedImpl.specificTest(rows, cols)
+    val f3 = StagedImpl.genericTest(rows, cols)
     
     time("--- generic") { f1() }
     time("--- generic") { f1() }
@@ -37,6 +43,8 @@ object Test {
     time("--- staged") { f3() }
     time("--- staged") { f3() }
     time("--- staged") { f3() }
+    
+    println
 
   }
   
@@ -62,17 +70,17 @@ object UnstagedImpl {
   }
   
   
-  def genericTest: () => Unit = { () =>
-    val m = randomMatrix(500, 100)
-    val n = randomMatrix(100, 500)
+  def genericTest(rows: Int, cols: Int): () => Unit = { () =>
+    val m = randomMatrix(rows, cols)
+    val n = randomMatrix(cols, rows)
 
     val p = multGeneric(m,n)
     p.print
   }
 
-  def specificTest: () => Unit = { () =>
-    val m = randomMatrix(500, 100)
-    val n = randomMatrix(100, 500)
+  def specificTest(rows: Int, cols: Int): () => Unit = { () =>
+    val m = randomMatrix(rows, cols)
+    val n = randomMatrix(cols, rows)
 
     val p = multDouble(m,n)
     p.print
@@ -137,9 +145,9 @@ object StagedImpl extends ScalaLift with ScalaCompile {
   }
     
 
-  def genericTest: () => Unit = compile {
-    val m = randomMatrix(500, 100)
-    val n = randomMatrix(100, 500)
+  def genericTest(rows: Int, cols: Int): () => Unit = compile {
+    val m = randomMatrix(rows, cols)
+    val n = randomMatrix(cols, rows)
 
     val p = multGeneric(m,n)
     p.print
@@ -155,9 +163,6 @@ object StagedImpl extends ScalaLift with ScalaCompile {
   }
 
   def multGeneric[T:Numeric:Manifest](m: Matrix[T], n: Matrix[T]) = {
-    val num = implicitly[Numeric[T]]
-    import num._
-
     val p = new Matrix[T](m.rows, n.cols)
     
     for (i <- 0 until m.rows) {
