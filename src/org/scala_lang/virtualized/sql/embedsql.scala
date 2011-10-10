@@ -1,6 +1,8 @@
 package org.scala_lang.virtualized.sql
 import org.scala_lang.virtualized.CoreExps
 
+import java.io._
+import java.sql._
 import scala.reflect.SourceLocation
 
 trait SQLExps extends CoreExps {
@@ -9,7 +11,7 @@ trait SQLExps extends CoreExps {
 
   case class ResultRow[T](fields: Map[String, Exp[_]]) extends Exp[T] 
 
-  case class Select[T, U](tgt: Exp[U], field: String)(val loc: SourceLocation) extends Exp[T] {
+  case class Select[T, U](tgt: Exp[U], field: String) extends Exp[T] {
     override def refStr: String = tgt.refStr +"."+ field
   }
 
@@ -19,7 +21,7 @@ trait SQLExps extends CoreExps {
     }
   }
 
-  case class Table[Tuple <: Record](name: String) extends Exp[List[Tuple]]
+  case class Table[Tuple <: Record](name: String)(implicit val loc: SourceLocation) extends Exp[List[Tuple]]
   
   implicit def liftList[T](x: List[T]): Exp[List[T]] = Const(x)
 }
@@ -28,8 +30,8 @@ trait EmbedSQL extends SQLExps {
   def __new[T](args: (String, Exp[T] => Exp[_])*): Exp[T] =
     new ResultRow(args map {case (n, rhs) => (n, rhs(null))} toMap)
 
-  implicit def selectOps(self: Exp[_ <: Record])(implicit loc: SourceLocation) = new {
-    def selectDynamic[T](n: String): Exp[T] = Select(self, n)(loc)
+  implicit def selectOps(self: Exp[_ <: Record]) = new {
+    def selectDynamic[T](n: String): Exp[T] = Select(self, n)
   }
 
   /*
@@ -52,63 +54,90 @@ object Test extends App  {
     type Item = Record {
       val itemName: String
       val customerName: String
+      val address: String
     }
 
     def prog = {
-      val items = Table[Item]("items")
-      items.Select(e => new Record { val customerName = e.customerName })
-           .Select(e => new Record { val itemName = e.itemName }) /*Where (_.customerName <> "me")*/
+      val items = Table[Tuple]("items")
+      items.Select(e => new Record { val customerName = e.customerName; val address = e.address })
+      // items.Select(e => new Record { val customerName = e.customerName })
+      //      .Select(e => new Record { val itemName = e.itemName }) /*Where (_.customerName <> "me")*/
     }
   }
 
-  Example.emitQuery(Example.prog)
+  // setup DB to run query against
+  Class.forName("org.h2.Driver")
+  val con = DriverManager.getConnection("jdbc:h2:mem:testdb", "sa", "")
+  val createTableStmt = """
+CREATE TABLE Items
+(
+CustomerName varchar(255),
+ItemName varchar(255)
+)
+"""
+  val insertStmt = """
+INSERT INTO Items
+VALUES ('Typesafe', 'Chair')
+"""
+  val res = con.createStatement().execute(createTableStmt)
+  val res2 = con.createStatement().execute(insertStmt)
+  Example.runQuery(con, Example.prog)
+  con.close()
 }
 
 trait SQLCodeGen extends SQLExps {
-  def emitPlain(s: String, more: Boolean = false) = {
-    if (more) print(s) else println(s)
+  def emitPlain(out: PrintWriter, s: String, more: Boolean = false) = {
+    if (more) out.print(s) else out.println(s)
   }
 
-  def emitExpr[T](expr: Exp[T]): Unit = expr match {
-    case Select(_, field) => emitPlain(field, true)
+  def emitExpr[T](out: PrintWriter, expr: Exp[T]): Unit = expr match {
+    case Select(_, field) => emitPlain(out, field, true)
   }
   
-  def emitSelector[T, S](f: Exp[T] => Exp[S]): Unit = f(null) match {
+  def emitSelector[T, S](out: PrintWriter, f: Exp[T] => Exp[S]): Unit = f(null) match {
     case ResultRow(fields) =>
       var first = true
       for ((name, value) <- fields) {
-        if (first) { first = false } else emitPlain(", ", true)
-        emitExpr(value)
+        if (first) { first = false } else emitPlain(out, ", ", true)
+        emitExpr(out, value)
       }
   }
   
-  def emitQuery[T](expr: Exp[T]): Unit = expr match {
+  def emitQuery[T](out: PrintWriter, expr: Exp[T]): Unit = expr match {
     case Table(name) =>
-      emitPlain(name, true)
+      emitPlain(out, name, true)
     case ListSelect(table, selector) =>
-      // possible problem: `selector` might access a field that does
-      // not exist in the tuples in the list that we select from (table)
-      // if table is a ListSelect, we can find out which fields are projected out
-      table match {
-        case sel @ ListSelect(_, _) =>
-          selector(null) match {
-            case ResultRow(fields) =>
-              for ((field, initializer) <- fields) {
-                initializer match {
-                  case fieldSel @ Select(_, name) =>
-                    if (!sel.projectedNames.toList.contains(name)) {
-                      val loc = fieldSel.loc // source location of `Select` call
-                      error(loc.fileName + ":" + loc.line + ": error: selecting non-existant field " + name)
-                    }
-                }
-              }
-          }
-        case _ =>
-      }
-      emitPlain("SELECT ", true)
-      emitSelector(selector)
-      emitPlain(" FROM ", true)
-      emitQuery(table)
-      emitPlain("")
+      emitPlain(out, "SELECT ", true)
+      emitSelector(out, selector)
+      emitPlain(out, " FROM ", true)
+      emitQuery(out, table)
+      emitPlain(out, "")
+  }
+
+  def runQuery[T](con: Connection, expr: Exp[T]) {
+    val writer = new StringWriter
+    val printer = new PrintWriter(writer)
+    emitQuery(printer, expr)
+    val query = writer.toString()
+    val sta = con.createStatement()
+    try {
+      val res = sta.executeQuery(query)
+      res.next()
+      val s = res.getString(1)
+      println("Result: " + s)
+    } catch {
+      case e: Exception =>
+        expr match {
+          case ListSelect(t, _) =>
+            t match {
+              case table @ Table(name) =>
+                println("error executing query on table " + name +
+                  " declared at " + table.loc.line + ": ")
+                e.printStackTrace
+              case _ =>
+                e.printStackTrace
+            }
+        }
+    }
   }
 }
