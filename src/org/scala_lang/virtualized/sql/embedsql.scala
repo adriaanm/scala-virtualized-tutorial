@@ -7,21 +7,19 @@ trait SQLExps extends CoreExps {
   // marker to trigger __new reification
   class Result extends Row[Exp]
 
-  type Tuple <: Result
-  
   case class ResultRow[T](fields: Map[String, Exp[_]]) extends Exp[T] 
 
   case class Select[T, U](tgt: Exp[U], field: String)(val loc: SourceLocation) extends Exp[T] {
     override def refStr: String = tgt.refStr +"."+ field
   }
 
-  case class ListSelect[T](t: Exp[List[Tuple]], f: Exp[Tuple] => Exp[T]) extends Exp[List[Tuple]] {
+  case class ListSelect[Tuple <: Result, T](t: Exp[List[Tuple]], f: Exp[Tuple] => Exp[T]) extends Exp[List[Tuple]] {
     def projectedNames: Iterable[String] = f(null) match {
       case ResultRow(fields) => fields.keys
     }
   }
 
-  case class Table(name: String) extends Exp[List[Tuple]]
+  case class Table[Tuple <: Result](name: String) extends Exp[List[Tuple]]
   
   implicit def liftList[T](x: List[T]): Exp[List[T]] = Const(x)
 }
@@ -43,7 +41,7 @@ trait EmbedSQL extends SQLExps {
   }
   */
   
-  implicit def listSelectOps(l: Exp[List[Tuple]]) = new {
+  implicit def listSelectOps[Tuple <: Result](l: Exp[List[Tuple]]) = new {
     def Select[T](f: Exp[Tuple] => Exp[T]): Exp[List[Tuple]] =
       ListSelect(l, f)
   }
@@ -57,7 +55,7 @@ object Test extends App  {
     }
 
     def prog = {
-      val items = Table("items")
+      val items = Table[Tuple]("items")
       items.Select(e => new Result { val customerName = e.customerName })
            .Select(e => new Result { val itemName = e.itemName }) /*Where (_.customerName <> "me")*/
     }
