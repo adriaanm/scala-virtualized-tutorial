@@ -58,7 +58,7 @@ object Test extends App  {
     }
 
     def prog = {
-      val items = Table[Tuple]("items")
+      val items = Table[Item]("items")
       items.Select(e => new Record { val customerName = e.customerName; val address = e.address })
       // items.Select(e => new Record { val customerName = e.customerName })
       //      .Select(e => new Record { val itemName = e.itemName }) /*Where (_.customerName <> "me")*/
