@@ -16,10 +16,6 @@ trait SQLExps extends CoreExps {
   }
 
   case class ListSelect[Tuple <: Result, T](t: Exp[List[Tuple]], f: Exp[Tuple] => Exp[T]) extends Exp[List[Tuple]] {
-    def loc: Option[SourceLocation] = t match {
-      case t @ Table(_) =>           Some(t.loc)
-      case sel @ ListSelect(_, _) => sel.loc
-    }
     def projectedNames: Iterable[String] = f(null) match {
       case ResultRow(fields) => fields.keys
     }
@@ -130,12 +126,13 @@ trait SQLCodeGen extends SQLExps {
     } catch {
       case e: Exception =>
         expr match {
-          case sel @ ListSelect(_, _) =>
-            sel.loc match {
-              case Some(l) =>
-                println("error executing query on table declared at " + l.line + ": ")
+          case ListSelect(t, _) =>
+            t match {
+              case table @ Table(name) =>
+                println("error executing query on table " + name +
+                  " declared at " + table.loc.line + ": ")
                 e.printStackTrace
-              case None =>
+              case _ =>
                 e.printStackTrace
             }
         }
