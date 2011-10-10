@@ -33,18 +33,13 @@ object Scalac {
     settings.encoding.value = "UTF-8"
     settings.outdir.value = "."
     settings.extdirs.value = ""
-    //settings.verbose.value = true
-    settings.inline.value = true // GLITCH: need this to enable loading of trait impl classes (i.e. Foo$class.class)
-    //settings.optimise.value = true // GLITCH: need this to enable loading of trait impl classes (i.e. Foo$class.class)
-    //settings.log.value = List("all")
-    //settings.uniqid.value = true
 
     reporter = new ConsoleReporter(settings/*, null, new PrintWriter(System.out)*/)//writer
     compiler = new Global(settings, reporter)
   
   }
 
-  def compile[A](className: String, source: String): A = {
+  def compile[A](className: String, source: String, args: List[Any]): A = {
 
     /*val className = "StagedX"
 
@@ -58,7 +53,6 @@ object Scalac {
 
     val fileSystem = new VirtualDirectory("<vfs>", None)
     compiler.settings.outputDirs.setSingleOutput(fileSystem)
-  //      compiler.genJVM.outputDir = fileSystem
 
     run.compileSources(List(new BatchSourceFile("<stdin>", source.toString)))
     reporter.printSummary()
@@ -69,13 +63,15 @@ object Scalac {
       println("compilation: had errors")
 
     reporter.reset
-    //output.reset
 
     val parent = this.getClass.getClassLoader
     val loader = new AbstractFileClassLoader(fileSystem, this.getClass.getClassLoader)
 
     val cls: Class[_] = loader.loadClass(className)
-    cls.newInstance().asInstanceOf[A]
+    //cls.newInstance().asInstanceOf[A]
+    val cons = cls.getConstructor(args.map(_.getClass):_*)
+    
+    cons.newInstance(args.asInstanceOf[List[AnyRef]]:_*).asInstanceOf[A]
   }
 
 

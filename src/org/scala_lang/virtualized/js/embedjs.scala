@@ -10,7 +10,6 @@ trait JSDefsExps extends CoreDefs {
   case class IfThenElse[T](c: Exp[Boolean], a: Block[T], b: Block[T]) extends Def[T]
   case class VarInit[T](x: Exp[T]) extends Def[T]
   case class VarAssign[T](v: Exp[T], x: Exp[T]) extends Def[Unit]
-
   
   /**
    * The representation of a binary operation: we'll only use >= here 
@@ -34,11 +33,14 @@ trait JSDefsExps extends CoreDefs {
     override def refStr: String = tgt.refStr +"."+ field
   }
   case class Obj[T](fields: Map[String, Exp[_]]) extends Exp[T] 
+
+  case class Global[T](name: String) extends Exp[T]
+  case class Invoke[T,U](tgt: Exp[U], name: String, args: List[Exp[_]]) extends Def[T]
 }
 
 trait EmbedJS extends JSDefsExps {
   // note the return types! toAtom will be used to turn the Def's into Exp's
-  def __ifThenElse[T](cond: Exp[Boolean], thenp: Exp[T], elsep: Exp[T]): Exp[T] = IfThenElse(cond, thenp, elsep)
+  def __ifThenElse[T](cond: Exp[Boolean], thenp: Exp[T], elsep: Exp[T]): Exp[T] = IfThenElse(cond, reifyBlock(thenp), reifyBlock(elsep))
   def __newVar[T](x: Exp[T]): Exp[T] = VarInit(x)
   def __assign[T](lhs: Exp[T], rhs: Exp[T]): Exp[Unit] = VarAssign(lhs, rhs)
 
@@ -50,6 +52,12 @@ trait EmbedJS extends JSDefsExps {
   implicit def selectOps(self: Exp[_ <: JSObj]) = new {
     def selectDynamic[T](n: String): Exp[T] = Select(self, n)
   }
+  
+  class DOM  
+  def document: Exp[DOM] = Global[DOM]("document")
+  def infix_getElementById(x: Exp[DOM], id: Exp[String]): Exp[DOM] = Invoke[DOM,DOM](x, "getElementById", List(id))
+  def infix_innerHTML(x: Exp[DOM]): Exp[String] = Select(x, "innerHTML")
+  def infix_foobar(x: Exp[DOM]): Exp[String] = Select(x, "innerHTML")
 }
 
 /**
@@ -57,14 +65,34 @@ trait EmbedJS extends JSDefsExps {
  * To run in Eclipse, right-click on "Test" below, and select Run As > Scala Application
  */
 object Test extends App  {
-  object Example extends EmbedJS with JSCodeGen { def prog = {
-    var kim = new JSObj { val name = "kim"; val age = 20 }
-    kim.age = 21
-    var allowedDrink = if (kim.age >= 21) "beer" else "milk"
-    allowedDrink
-  }}
+  object Example extends EmbedJS with JSCodeGen { 
+    def prog = {
+      var kim = new JSObj { val name = "kim"; val age = 20 }
+      kim.age = 21
+      var allowedDrink = if (kim.age >= 21) "beer" else "milk"
 
-  Example.emitBlock(Example.prog)
+      document.getElementById("drink").innerHTML = allowedDrink
+    }
+  }
+
+  Example.emitFun("prog")(Example.prog) // output to console
+
+  val html = {
+      <html>
+        <head>
+          <title>Scala to JavaScript</title>
+          <script type="text/javascript">
+            { scala.xml.Unparsed(Example.captureOutput(Example.emitFun("prog")(Example.prog))) }
+          </script>
+        </head>
+        <body onLoad="prog();">
+          <h1>Kim drinks:</h1>
+          <div id="drink">dunno</div>
+        </body>
+      </html>
+    }
+
+  scala.xml.XML.save("test.html", html)
 }
 
 /* emitted code: {
@@ -99,18 +127,30 @@ trait JSCodeGen extends JSDefsExps {
     indent = !more
   }
 
+  def emitFun[T](name: String)(a: => Exp[T]) = {
+    emitPlain("function " + name + "() ", true)
+    emitBlock(reifyBlock(a))
+  }
+
   def emitBlock[T](a: Block[T], more: Boolean = false, s: Sym[T] = null) = a match {
     case Block(stms, e) =>
       emitPlain("{", false); nesting += 1
         stms foreach { case t: ScopeEntry[t] => emitNode[t](t.sym, t.rhs) }
 
         if(s == null) emitPlain(e.refStr)
-        else emitValDef(s, e.refStr)
+        else emitPlain(s.refStr + " = " + e.refStr)
       nesting -= 1; emitPlain("}", more)
+  }
+
+  def captureOutput(block: =>Unit): String = {
+    val bstream = new java.io.ByteArrayOutputStream
+    Console.withOut(new java.io.PrintStream(bstream))(block)
+    bstream.toString
   }
 
   def emitNode[T](s: Sym[T], d: Def[T]): Unit = d match {
     case IfThenElse(c,a,b) => 
+      emitPlain("var " + s.refStr)
       emitPlain("if (", true); emitExpr(c); emitPlain(") ", true)
       emitBlock(a, true, s)
       emitPlain(" else ", true)
@@ -120,12 +160,23 @@ trait JSCodeGen extends JSDefsExps {
     case VarAssign(v, x) => 
       emitValDef(s, "(" + v.refStr + " = ", true); emitExpr(x); emitPlain(")")
     case BinaryOp(x, op, y) =>
-      emitValDef(s, "", true); emitExpr(x); emitPlain(" "+ op +" ", true); emitExpr(y); emitPlain(")")
+      emitValDef(s, "", true); emitExpr(x); emitPlain(" "+ op +" ", true); emitExpr(y); emitPlain("")
+    case Invoke(x, m, args) => 
+      emitValDef(s, x.refStr + "." + m + "(", true)
+      args.init.foreach { e => emitExpr(e); emitPlain(",", true) }
+      emitExpr(args.last)
+      //args.map(e => emitExpr(e)).mkString(",") + ")")
+      emitPlain(")")
   }
 
+  override def quoteExp[T](x: Exp[T]): String = x match {
+    case Global(name) => name
+    case _ => super.quoteExp(x)
+  }
   def emitExpr[T](expr: Exp[T]): Unit = expr match {
     case s@Sym(_) => emitPlain(s.refStr, true)
     case c@Const(_) => emitPlain(c.refStr, true); 
+    case Global(name) => emitPlain(name, true)
     case Select(tgt, field) => emitExpr(tgt); emitPlain("."+field, true)
     case Obj(fields) =>
       emitPlain("{", true)

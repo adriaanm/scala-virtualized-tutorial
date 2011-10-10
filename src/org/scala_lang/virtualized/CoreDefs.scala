@@ -49,7 +49,7 @@ trait CoreDefs extends CoreExps {
    * This operation increases the nesting level by creating a new nested scope. 
    * Call it when entering a block.
    */
-  implicit def reifyBlock[T](e: => Exp[T]): Block[T] = {
+  def reifyBlock[T](e: => Exp[T]): Block[T] = {
     scopeDefs = Nil::scopeDefs // push a new nested scope onto the stack
     val r = e // evaluate e after going to a new nesting level for scopes -- toAtom calls will now populate the current scope
     val stms = scopeDefs.head // save the populated scope

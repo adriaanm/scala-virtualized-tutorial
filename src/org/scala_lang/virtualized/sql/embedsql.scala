@@ -5,7 +5,7 @@ import scala.reflect.SourceLocation
 
 trait SQLExps extends CoreExps {
   // marker to trigger __new reification
-  class Result extends Row[Exp]
+  class Record extends Row[Exp]
 
   case class ResultRow[T](fields: Map[String, Exp[_]]) extends Exp[T] 
 
@@ -13,13 +13,13 @@ trait SQLExps extends CoreExps {
     override def refStr: String = tgt.refStr +"."+ field
   }
 
-  case class ListSelect[Tuple <: Result, T](t: Exp[List[Tuple]], f: Exp[Tuple] => Exp[T]) extends Exp[List[Tuple]] {
+  case class ListSelect[Tuple <: Record, T](t: Exp[List[Tuple]], f: Exp[Tuple] => Exp[T]) extends Exp[List[Tuple]] {
     def projectedNames: Iterable[String] = f(null) match {
       case ResultRow(fields) => fields.keys
     }
   }
 
-  case class Table[Tuple <: Result](name: String) extends Exp[List[Tuple]]
+  case class Table[Tuple <: Record](name: String) extends Exp[List[Tuple]]
   
   implicit def liftList[T](x: List[T]): Exp[List[T]] = Const(x)
 }
@@ -28,7 +28,7 @@ trait EmbedSQL extends SQLExps {
   def __new[T](args: (String, Exp[T] => Exp[_])*): Exp[T] =
     new ResultRow(args map {case (n, rhs) => (n, rhs(null))} toMap)
 
-  implicit def selectOps(self: Exp[_ <: Result])(implicit loc: SourceLocation) = new {
+  implicit def selectOps(self: Exp[_ <: Record])(implicit loc: SourceLocation) = new {
     def selectDynamic[T](n: String): Exp[T] = Select(self, n)(loc)
   }
 
@@ -41,7 +41,7 @@ trait EmbedSQL extends SQLExps {
   }
   */
   
-  implicit def listSelectOps[Tuple <: Result](l: Exp[List[Tuple]]) = new {
+  implicit def listSelectOps[Tuple <: Record](l: Exp[List[Tuple]]) = new {
     def Select[T](f: Exp[Tuple] => Exp[T]): Exp[List[Tuple]] =
       ListSelect(l, f)
   }
@@ -49,15 +49,15 @@ trait EmbedSQL extends SQLExps {
 
 object Test extends App  {
   object Example extends EmbedSQL with SQLCodeGen {
-    type Tuple = Result {
+    type Item = Record {
       val itemName: String
       val customerName: String
     }
 
     def prog = {
-      val items = Table[Tuple]("items")
-      items.Select(e => new Result { val customerName = e.customerName })
-           .Select(e => new Result { val itemName = e.itemName }) /*Where (_.customerName <> "me")*/
+      val items = Table[Item]("items")
+      items.Select(e => new Record { val customerName = e.customerName })
+           .Select(e => new Record { val itemName = e.itemName }) /*Where (_.customerName <> "me")*/
     }
   }
 
