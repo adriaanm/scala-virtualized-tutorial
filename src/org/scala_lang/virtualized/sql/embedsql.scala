@@ -2,7 +2,7 @@ package org.scala_lang.virtualized.sql
 import org.scala_lang.virtualized.CoreExps
 
 import java.io._
-import java.sql._
+import java.sql.{Struct => _, _}
 import scala.reflect.SourceLocation
 
 trait SQLExps extends CoreExps {
@@ -27,8 +27,8 @@ trait SQLExps extends CoreExps {
 }
 
 trait EmbedSQL extends SQLExps {
-  def __new[T](args: (String, Exp[T] => Exp[_])*): Exp[T] =
-    new ResultStruct(args map {case (n, rhs) => (n, rhs(null))} toMap)
+  def __new[T](args: (String, Boolean, Exp[T] => Exp[_])*): Exp[T] =
+    new ResultStruct(args map {case (n, mut, rhs) => (n, rhs(null))} toMap)
 
   implicit def selectOps(self: Exp[_ <: Record]) = new {
     def selectDynamic[T](n: String): Exp[T] = Select(self, n)

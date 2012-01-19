@@ -47,7 +47,7 @@ trait EmbedJS extends JSDefsExps {
   // marker to trigger __new reification
   class JSObj extends Struct[Exp]
 
-  def __new[T](args: (String, Exp[T] => Exp[_])*): Exp[T] = new Obj(args map {case (n, rhs) => (n, rhs(null))} toMap)
+  def __new[T](args: (String, Boolean, Exp[T] => Exp[_])*): Exp[T] = new Obj(args map {case (n, mut, rhs) => (n, rhs(null))} toMap)
 
   implicit def selectOps(self: Exp[_ <: JSObj]) = new {
     def selectDynamic[T](n: String): Exp[T] = Select(self, n)
