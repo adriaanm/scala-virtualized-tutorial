@@ -7,9 +7,9 @@ import scala.reflect.SourceLocation
 
 trait SQLExps extends CoreExps {
   // marker to trigger __new reification
-  class Record extends Row[Exp]
+  class Record extends Struct[Exp]
 
-  case class ResultRow[T](fields: Map[String, Exp[_]]) extends Exp[T] 
+  case class ResultStruct[T](fields: Map[String, Exp[_]]) extends Exp[T] 
 
   case class Select[T, U](tgt: Exp[U], field: String) extends Exp[T] {
     override def refStr: String = tgt.refStr +"."+ field
@@ -17,7 +17,7 @@ trait SQLExps extends CoreExps {
 
   case class ListSelect[Tuple <: Record, T](t: Exp[List[Tuple]], f: Exp[Tuple] => Exp[T]) extends Exp[List[Tuple]] {
     def projectedNames: Iterable[String] = f(null) match {
-      case ResultRow(fields) => fields.keys
+      case ResultStruct(fields) => fields.keys
     }
   }
 
@@ -28,7 +28,7 @@ trait SQLExps extends CoreExps {
 
 trait EmbedSQL extends SQLExps {
   def __new[T](args: (String, Exp[T] => Exp[_])*): Exp[T] =
-    new ResultRow(args map {case (n, rhs) => (n, rhs(null))} toMap)
+    new ResultStruct(args map {case (n, rhs) => (n, rhs(null))} toMap)
 
   implicit def selectOps(self: Exp[_ <: Record]) = new {
     def selectDynamic[T](n: String): Exp[T] = Select(self, n)
@@ -95,7 +95,7 @@ trait SQLCodeGen extends SQLExps {
   }
   
   def emitSelector[T, S](out: PrintWriter, f: Exp[T] => Exp[S]): Unit = f(null) match {
-    case ResultRow(fields) =>
+    case ResultStruct(fields) =>
       var first = true
       for ((name, value) <- fields) {
         if (first) { first = false } else emitPlain(out, ", ", true)
