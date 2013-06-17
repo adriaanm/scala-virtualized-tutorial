@@ -45,7 +45,7 @@ trait EmbedJS extends JSDefsExps {
   def __assign[T](lhs: Exp[T], rhs: Exp[T]): Exp[Unit] = VarAssign(lhs, rhs)
 
   // marker to trigger __new reification
-  class JSObj extends Struct[Exp]
+  class JSObj extends Struct
 
   def __new[T](args: (String, Boolean, Exp[T] => Exp[_])*): Exp[T] = new Obj(args map {case (n, mut, rhs) => (n, rhs(null))} toMap)
 

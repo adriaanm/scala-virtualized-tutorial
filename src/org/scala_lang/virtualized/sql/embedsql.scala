@@ -7,7 +7,7 @@ import scala.reflect.SourceLocation
 
 trait SQLExps extends CoreExps {
   // marker to trigger __new reification
-  class Record extends Struct[Exp]
+  class Record extends Struct
 
   case class ResultStruct[T](fields: Map[String, Exp[_]]) extends Exp[T] 
 

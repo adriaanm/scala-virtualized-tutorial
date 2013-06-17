@@ -1,18 +1,12 @@
 name := "Scala-Virtualized Tutorials"
 
-version := "1.0"
+version := "2.0"
 
-scalaVersion := "2.10.0-virtualized-SNAPSHOT"
+scalaOrganization := "org.scala-lang.virtualized"
 
-resolvers += ScalaToolsSnapshots 
+scalaVersion := "2.10.2-RC1"
 
-scalaSource in Compile <<= baseDirectory(_ / "src") // default
+scalaSource in Compile <<= baseDirectory(_ / "src")
 
-// scalacOptions += "-Xexperimental" // not needed
-
-libraryDependencies += "org.scala-lang" % "scala-compiler" % "2.10.0-virtualized-SNAPSHOT"
-
-//mainClass in (Compile, run) := Some("myproject.MyMain")
-
-
+libraryDependencies += "org.scala-lang.virtualized" % "scala-compiler" % "2.10.2-RC1"
 
