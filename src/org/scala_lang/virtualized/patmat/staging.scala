@@ -91,7 +91,7 @@ trait Impl extends MatcherSpec {
   def infix__2[A, B](t: Exp[(A, B)]): Exp[B] = TupleSelect(2, t)
 }
 
-object Test extends App with Spec with Impl {
+object StagingTest extends App with Spec with Impl {
   override val __match = __match_impl
 
   println(test1)
