@@ -23,12 +23,12 @@ trait Spec extends MatcherSpec {
   implicit def proxyMaybe[A](m: M[A]): Maybe[A]
   implicit def unit[T](e: T): Exp[T]
 
-  def __unapply[T](kind: String, x: Exp[_]): M[T]
+  def __unapply[T](kind: String, x: Exp[Any]): M[T]
   object XNil {
-    def unapply(x: Exp[_]): M[Unit] = __unapply("Nil", x)
+    def unapply(x: Exp[Any]): M[Unit] = __unapply("Nil", x)
   }
   object XCons {
-    def unapply(x: Exp[_]): M[(Any, Any)] = __unapply("Cons", x)
+    def unapply(x: Exp[Any]): M[(Any, Any)] = __unapply("Cons", x)
   }
 
   def infix__1[A, B](t: Exp[(A, B)]): Exp[A]
@@ -43,13 +43,13 @@ trait Spec extends MatcherSpec {
   def test3 = List(1, 2, 3) match { case _ => "list" }
   // ResultOrMatchError(One(list))
 
-  def test4 = List(1, 2, 3) match { case XNil() => "nil"; case _ => "other" }
+  def test4 = List(1, 2, 3) match { case XNil(_) => "nil"; case _ => "other" }
   // ResultOrMatchError(OrElse(FlatMap(Unapply(Nil,List(1, 2, 3)),x2,One(nil)),One(other)))
 
-  def test5 = List(1, 2, 3) match { case XNil() => "nil"; case XCons(_, _) => "other" }
+  def test5 = List(1, 2, 3) match { case XNil(_) => "nil"; case XCons(_, _) => "other" }
   // ResultOrMatchError(OrElse(FlatMap(Unapply(Nil,List(1, 2, 3)),x3,One(nil)),FlatMap(Unapply(Cons,List(1, 2, 3)),x4,One(other))))
 
-  def test6 = List(1, 2, 3) match { case XNil() => "default"; case XCons(hd, tl) => hd }
+  def test6 = List(1, 2, 3) match { case XNil(_) => "default"; case XCons(hd, tl) => hd }
   // ResultOrMatchError(OrElse(FlatMap(Unapply(Nil,List(1, 2, 3)),x5,One(default)),FlatMap(Unapply(Cons,List(1, 2, 3)),x6,One(x6._1))))
 }
 
@@ -85,7 +85,7 @@ trait Impl extends MatcherSpec {
   }
   implicit def unit[T](e: T): Exp[T] = Const(e)
 
-  def __unapply[T](kind: String, x: Exp[_]): M[T] = Unapply(kind, x)
+  def __unapply[T](kind: String, x: Exp[Any]): M[T] = Unapply(kind, x)
 
   def infix__1[A, B](t: Exp[(A, B)]): Exp[A] = TupleSelect(1, t)
   def infix__2[A, B](t: Exp[(A, B)]): Exp[B] = TupleSelect(2, t)
